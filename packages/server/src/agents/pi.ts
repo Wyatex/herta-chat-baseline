@@ -1,5 +1,6 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel, Type } from "@earendil-works/pi-ai";
+import { callMcpTool } from "../mcp-client.ts";
 import type { Message, McpTool } from "@herta/shared";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { config } from "../config.ts";
@@ -20,8 +21,9 @@ export function createPiAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
       )
     ),
     execute: async (_toolCallId: string, params: any) => {
+      const result = await callMcpTool(tool.name, params);
       return {
-        content: [{ type: "text" as const, text: `Tool ${tool.name} called with ${JSON.stringify(params)}` }],
+        content: [{ type: "text" as const, text: result }],
         details: undefined,
       };
     },

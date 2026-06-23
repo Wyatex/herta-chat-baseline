@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { config } from "../config.ts";
+import { callMcpTool } from "../mcp-client.ts";
 import type { Message, McpTool } from "@herta/shared";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
@@ -27,7 +28,7 @@ export function createLangGraphAgent(systemPrompt: string, mcpTools: McpTool[] =
         )
       ),
       func: async (input) => {
-        return `Tool ${tool.name} called with ${JSON.stringify(input)}`;
+        return await callMcpTool(tool.name, input as Record<string, unknown>);
       },
     })
   );
