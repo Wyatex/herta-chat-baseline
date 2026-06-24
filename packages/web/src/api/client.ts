@@ -1,4 +1,4 @@
-import type { Conversation, Message, AgentType, SSEEvent } from "@herta/shared";
+import type { Conversation, Message, AgentType, SSEEvent, ToolCall, ToolResult } from "@herta/shared";
 
 const BASE = "/api";
 
@@ -64,9 +64,13 @@ export function streamChat(
   conversationId: string,
   message: string,
   systemPrompt: string,
-  onDelta: (text: string) => void,
-  onDone: () => void,
-  onError: (error: string) => void
+  callbacks: {
+    onDelta: (text: string) => void;
+    onToolCall: (toolCalls: ToolCall[]) => void;
+    onToolResult: (toolResult: ToolResult) => void;
+    onDone: () => void;
+    onError: (error: string) => void;
+  }
 ): AbortController {
   const controller = new AbortController();
 
@@ -78,7 +82,7 @@ export function streamChat(
   })
     .then(async (res) => {
       if (!res.ok) {
-        onError(`HTTP ${res.status}`);
+        callbacks.onError(`HTTP ${res.status}`);
         return;
       }
 
@@ -98,17 +102,19 @@ export function streamChat(
           if (line.startsWith("data: ")) {
             try {
               const event = JSON.parse(line.slice(6)) as SSEEvent;
-              if (event.type === "text_delta") onDelta(event.data);
-              else if (event.type === "error") onError(event.data);
-              else if (event.type === "done") onDone();
+              if (event.type === "text_delta") callbacks.onDelta(event.data as string);
+              else if (event.type === "tool_call") callbacks.onToolCall(event.data as ToolCall[]);
+              else if (event.type === "tool_result") callbacks.onToolResult(event.data as ToolResult);
+              else if (event.type === "error") callbacks.onError(event.data as string);
+              else if (event.type === "done") callbacks.onDone();
             } catch {}
           }
         }
       }
-      onDone();
+      callbacks.onDone();
     })
     .catch((err) => {
-      if (err.name !== "AbortError") onError(err.message);
+      if (err.name !== "AbortError") callbacks.onError(err.message);
     });
 
   return controller;

@@ -50,5 +50,5 @@ export interface McpTool {
 
 export interface SSEEvent {
   type: "text_delta" | "tool_call" | "tool_result" | "error" | "done";
-  data: string;
+  data: string | ToolCall[] | ToolResult;
 }

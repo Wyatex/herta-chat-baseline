@@ -5,7 +5,8 @@ import { createPiAgent } from "../agents/pi.ts";
 import * as db from "../db.ts";
 import { randomUUID } from "crypto";
 import { DEFAULT_SYSTEM_PROMPT } from "@herta/shared";
-import {mcpTools} from "../mcp-client.ts";
+import type { ToolCall, ToolResult } from "@herta/shared";
+import { mcpTools } from "../mcp-client.ts";
 
 route("POST", "/api/chat/langchain", async (req) => {
   const body = await req.json() as {
@@ -30,10 +31,16 @@ route("POST", "/api/chat/langchain", async (req) => {
     const messages = db.getMessages(conversationId);
     const langChainMessages = [
       { role: "system" as const, content: systemPrompt },
-      ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ...messages.map(m => {
+        if (m.role === "tool" && m.toolResult) {
+          return { role: "tool" as const, content: m.content, tool_call_id: m.toolResult.toolCallId };
+        }
+        return { role: m.role as "user" | "assistant", content: m.content, tool_calls: m.toolCalls };
+      }),
     ];
 
     let fullResponse = "";
+    let pendingToolCalls: ToolCall[] = [];
 
     const eventStream = agent.streamEvents(
       { messages: langChainMessages },
@@ -51,15 +58,67 @@ route("POST", "/api/chat/langchain", async (req) => {
           }
         }
       }
+      else if (event.event === "on_chat_model_end") {
+        const output = event.data?.output;
+        if (output?.tool_calls?.length) {
+          const toolCalls: ToolCall[] = output.tool_calls.map((tc: any) => ({
+            id: tc.id,
+            name: tc.name,
+            arguments: typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args),
+          }));
+
+          db.addMessage({
+            id: randomUUID(),
+            role: "assistant",
+            content: fullResponse,
+            timestamp: Date.now(),
+            conversationId,
+            toolCalls,
+          });
+          fullResponse = "";
+          pendingToolCalls = toolCalls;
+          sendSSE(controller, { type: "tool_call", data: toolCalls });
+        }
+      }
+      else if (event.event === "on_tool_end") {
+        const toolCallId = pendingToolCalls.length > 0 ? pendingToolCalls[0].id : "";
+        const isError = !!event.data?.error;
+        const content = isError
+          ? String(event.data.error)
+          : typeof event.data?.output === "string"
+            ? event.data.output
+            : JSON.stringify(event.data?.output ?? "");
+
+        const toolResult: ToolResult = { toolCallId, content, isError };
+
+        db.addMessage({
+          id: randomUUID(),
+          role: "tool",
+          content,
+          timestamp: Date.now(),
+          conversationId,
+          toolResult,
+        });
+
+        if (pendingToolCalls.length > 1) {
+          pendingToolCalls = pendingToolCalls.slice(1);
+        } else {
+          pendingToolCalls = [];
+        }
+
+        sendSSE(controller, { type: "tool_result", data: toolResult });
+      }
     }
 
-    db.addMessage({
-      id: randomUUID(),
-      role: "assistant",
-      content: fullResponse,
-      timestamp: Date.now(),
-      conversationId,
-    });
+    if (fullResponse) {
+      db.addMessage({
+        id: randomUUID(),
+        role: "assistant",
+        content: fullResponse,
+        timestamp: Date.now(),
+        conversationId,
+      });
+    }
   });
 });
 

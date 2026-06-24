@@ -44,6 +44,11 @@ function handleKeydown(e: KeyboardEvent) {
     handleSend();
   }
 }
+
+function formatArgs(args: string): string {
+  try { return JSON.stringify(JSON.parse(args), null, 2); }
+  catch { return args; }
+}
 </script>
 
 <template>
@@ -58,8 +63,19 @@ function handleKeydown(e: KeyboardEvent) {
         :key="msg.id"
         :class="['message', msg.role]"
       >
-        <div class="message-role">{{ msg.role }}</div>
-        <div class="message-content">{{ msg.content }}</div>
+        <div class="message-role">{{ msg.role === 'tool' ? 'tool result' : msg.role }}</div>
+        <div v-if="msg.toolCalls?.length" class="tool-calls">
+          <div v-for="tc in msg.toolCalls" :key="tc.id" class="tool-call">
+            <div class="tool-call-header">
+              <strong>{{ tc.name }}</strong>
+            </div>
+            <pre class="tool-call-args">{{ formatArgs(tc.arguments) }}</pre>
+          </div>
+        </div>
+        <div v-if="msg.toolResult" class="tool-result">
+          <pre class="tool-result-content">{{ msg.content }}</pre>
+        </div>
+        <div v-else-if="msg.content" class="message-content">{{ msg.content }}</div>
       </div>
     </div>
     <div class="input-area">
@@ -133,6 +149,44 @@ function handleKeydown(e: KeyboardEvent) {
 .message-content {
   white-space: pre-wrap;
   line-height: 1.5;
+}
+
+.tool-calls {
+  border-left: 3px solid #e8a838;
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+.tool-call-header {
+  color: #e8a838;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.tool-call-args {
+  background: rgba(232, 168, 56, 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.tool-result {
+  border-left: 3px solid #4a9eff;
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+.tool-result-content {
+  background: rgba(74, 158, 255, 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
 }
 
 .input-area {

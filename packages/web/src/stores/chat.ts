@@ -39,43 +39,83 @@ let abortController: AbortController | null = null;
 export function sendMessage(content: string) {
   if (!currentConversation.value || isStreaming.value) return;
 
+  const convId = currentConversation.value.id;
+
   const userMsg: Message = {
     id: crypto.randomUUID(),
     role: "user",
     content,
     timestamp: Date.now(),
-    conversationId: currentConversation.value.id,
+    conversationId: convId,
   };
   messages.value.push(userMsg);
 
   isStreaming.value = true;
   let assistantContent = "";
+  let currentAssistantMsg: Message | null = null;
 
-  const assistantMsg: Message = {
-    id: crypto.randomUUID(),
-    role: "assistant",
-    content: "",
-    timestamp: Date.now(),
-    conversationId: currentConversation.value.id,
-  };
-  messages.value.push(assistantMsg);
+  function ensureAssistantMessage(): Message {
+    if (!currentAssistantMsg) {
+      currentAssistantMsg = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "",
+        timestamp: Date.now(),
+        conversationId: convId,
+      };
+      messages.value.push(currentAssistantMsg);
+    }
+    return currentAssistantMsg;
+  }
 
   abortController = api.streamChat(
     agentType.value,
-    currentConversation.value.id,
+    convId,
     content,
     systemPrompt.value,
-    (delta) => {
-      assistantContent += delta;
-      assistantMsg.content = assistantContent;
-    },
-    () => {
-      isStreaming.value = false;
-      loadConversations();
-    },
-    (error) => {
-      assistantMsg.content += `\n[Error: ${error}]`;
-      isStreaming.value = false;
+    {
+      onDelta: (delta) => {
+        assistantContent += delta;
+        const msg = ensureAssistantMessage();
+        msg.content = assistantContent;
+      },
+      onToolCall: (toolCalls) => {
+        if (currentAssistantMsg && assistantContent) {
+          currentAssistantMsg = null;
+          assistantContent = "";
+        }
+        messages.value.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          timestamp: Date.now(),
+          conversationId: convId,
+          toolCalls,
+        });
+        currentAssistantMsg = null;
+        assistantContent = "";
+      },
+      onToolResult: (toolResult) => {
+        messages.value.push({
+          id: crypto.randomUUID(),
+          role: "tool",
+          content: toolResult.content,
+          timestamp: Date.now(),
+          conversationId: convId,
+          toolResult,
+        });
+        currentAssistantMsg = null;
+        assistantContent = "";
+      },
+      onDone: () => {
+        isStreaming.value = false;
+        loadConversations();
+      },
+      onError: (error) => {
+        const msg = ensureAssistantMessage();
+        msg.content += `\n[Error: ${error}]`;
+        isStreaming.value = false;
+      },
     }
   );
 }
