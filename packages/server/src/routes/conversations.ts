@@ -12,7 +12,7 @@ route("POST", "/api/conversations", async (req) => {
   const conv = db.createConversation(
     id,
     body.title ?? "New Conversation",
-    body.agentType ?? "langgraph",
+    body.agentType ?? "langchain",
     body.systemPrompt ?? ""
   );
   return jsonResponse(conv, 201);

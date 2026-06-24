@@ -1,12 +1,13 @@
 import { route } from "../router.ts";
 import { createSSEStream, sendSSE } from "../sse.ts";
-import { createLangGraphAgent } from "../agents/langgraph.ts";
+import { createLangChainAgent } from "../agents/langchain.ts";
 import { createPiAgent } from "../agents/pi.ts";
 import * as db from "../db.ts";
 import { randomUUID } from "crypto";
 import { DEFAULT_SYSTEM_PROMPT } from "@herta/shared";
+import {mcpTools} from "../mcp-client.ts";
 
-route("POST", "/api/chat/langgraph", async (req) => {
+route("POST", "/api/chat/langchain", async (req) => {
   const body = await req.json() as {
     conversationId: string;
     message: string;
@@ -25,7 +26,7 @@ route("POST", "/api/chat/langgraph", async (req) => {
   });
 
   return createSSEStream(async (controller) => {
-    const agent = createLangGraphAgent(systemPrompt);
+    const agent = createLangChainAgent(systemPrompt, mcpTools);
     const messages = db.getMessages(conversationId);
     const langChainMessages = [
       { role: "system" as const, content: systemPrompt },
@@ -86,6 +87,7 @@ route("POST", "/api/chat/pi", async (req) => {
     let fullResponse = "";
 
     agent.subscribe((event) => {
+      console.log(event)
       if (event.type === "message_update") {
         const delta = event.assistantMessageEvent;
         if (delta?.type === "text_delta" && delta.delta) {

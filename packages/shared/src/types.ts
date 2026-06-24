@@ -29,7 +29,7 @@ export interface Conversation {
   updatedAt: number;
 }
 
-export type AgentType = "langgraph" | "pi";
+export type AgentType = "langchain" | "pi";
 
 export interface ChatRequest {
   conversationId: string;

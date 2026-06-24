@@ -1,7 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { McpTool } from "@herta/shared";
+import {config} from "./config.ts";
+import {handleRequest} from "./router.ts";
 
 const clients: Client[] = [];
 
@@ -18,7 +20,7 @@ export async function connectMcpServers(urls: string[]): Promise<McpTool[]> {
         const transport = new StdioClientTransport({ command: cmd!, args });
         await client.connect(transport);
       } else {
-        const transport = new SSEClientTransport(new URL(url));
+        const transport = new StreamableHTTPClientTransport(new URL(url));
         await client.connect(transport);
       }
 
@@ -55,4 +57,14 @@ export async function callMcpTool(toolName: string, args: Record<string, unknown
 export async function disconnectAll(): Promise<void> {
   await Promise.all(clients.map(c => c.close()));
   clients.length = 0;
+}
+
+
+export let mcpTools: any[] = [];
+
+export async function setupMCP() {
+  if (config.mcpServerUrls.length > 0) {
+    mcpTools = await connectMcpServers(config.mcpServerUrls);
+    console.log(`Connected to ${mcpTools.length} MCP tools`);
+  }
 }

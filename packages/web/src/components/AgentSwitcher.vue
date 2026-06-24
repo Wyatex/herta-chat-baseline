@@ -3,7 +3,7 @@ import { agentType } from "../stores/chat.ts";
 import type { AgentType } from "@herta/shared";
 
 const agents: { value: AgentType; label: string }[] = [
-  { value: "langgraph", label: "LangGraph" },
+  { value: "langchain", label: "LangChain" },
   { value: "pi", label: "Pi Agent" },
 ];
 </script>

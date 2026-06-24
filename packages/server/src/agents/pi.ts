@@ -1,12 +1,51 @@
-import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel, Type } from "@earendil-works/pi-ai";
-import { callMcpTool } from "../mcp-client.ts";
-import type { Message, McpTool } from "@herta/shared";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { config } from "../config.ts";
+import type {AgentTool} from "@earendil-works/pi-agent-core";
+import {Agent} from "@earendil-works/pi-agent-core";
+import {
+  createModels,
+  Type,
+  createProvider,
+  envApiKeyAuth
+} from "@earendil-works/pi-ai";
+import {callMcpTool} from "../mcp-client.ts";
+import type {McpTool, Message} from "@herta/shared";
+import {config} from "../config.ts";
+import {openAICompletionsApi} from "@earendil-works/pi-ai/compat";
 
+// @todo
 export function createPiAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
-  const model = getModel(config.piModelProvider as any, config.piModelName as any);
+  const models = createModels();
+  models.setProvider(createProvider({
+    id: "custom",
+    name: "custom",
+    baseUrl: config.llmBaseUrl,
+    auth: {
+      apiKey: envApiKeyAuth("API key", ["LLM_API_KEY"])
+    },
+    models: [{
+      id: config.llmModel,
+      name: config.llmModel,
+      api: "openai-completions",
+      provider: "custom",
+      baseUrl: config.llmBaseUrl,
+      compat: { "supportsStore": false, "supportsDeveloperRole": false, "requiresReasoningContentOnAssistantMessages": true, "thinkingFormat": "deepseek" },
+      reasoning: true,
+      thinkingLevelMap: { "minimal": null, "low": null, "medium": null, "high": "high", "xhigh": "max" },
+      input: ["text"],
+      cost: {
+        input: 0.14,
+        output: 0.28,
+        cacheRead: 0.0028,
+        cacheWrite: 0,
+      },
+      contextWindow: 1000000,
+      maxTokens: 384000,
+    }],
+    api: openAICompletionsApi(),
+  }))
+  const model = models.getModel('custom', config.llmModel);
+  if (!model) {
+    throw new Error(`Model not found: custom/${config.llmModel}`);
+  }
 
   const tools: AgentTool[] = mcpTools.map(tool => ({
     name: tool.name,
@@ -23,21 +62,19 @@ export function createPiAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
     execute: async (_toolCallId: string, params: any) => {
       const result = await callMcpTool(tool.name, params);
       return {
-        content: [{ type: "text" as const, text: result }],
+        content: [{type: "text" as const, text: result}],
         details: undefined,
       };
     },
   }));
 
-  const agent = new Agent({
+  return new Agent({
     initialState: {
       systemPrompt,
       model,
       tools,
     },
   });
-
-  return agent;
 }
 
 export function messagesToPiMessages(messages: Message[]) {

@@ -1,16 +1,16 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createAgent } from "langchain";
 import { config } from "../config.ts";
 import { callMcpTool } from "../mcp-client.ts";
 import type { Message, McpTool } from "@herta/shared";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 
-export function createLangGraphAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
+export function createLangChainAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
   const model = new ChatOpenAI({
-    openAIApiKey: config.llmApiKey,
-    modelName: config.llmModel,
+    apiKey: config.llmApiKey,
+    model: config.llmModel,
     configuration: { baseURL: config.llmBaseUrl },
     streaming: true,
   });
@@ -33,7 +33,7 @@ export function createLangGraphAgent(systemPrompt: string, mcpTools: McpTool[] =
     })
   );
 
-  return createReactAgent({ llm: model, tools });
+  return createAgent({ model, tools });
 }
 
 export function messagesToLangChain(messages: Message[]): (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] {

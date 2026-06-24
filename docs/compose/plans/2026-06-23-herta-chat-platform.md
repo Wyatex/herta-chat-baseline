@@ -672,12 +672,12 @@ git commit -m "feat(server): add SQLite persistence and conversation routes"
 
 **Files:**
 - Modify: `packages/server/src/routes/chat.ts`
-- Create: `packages/server/src/agents/langgraph.ts`
+- Create: `packages/server/src/agents/langchain.ts`
 
 - [ ] **Step 1: Create LangGraph agent module**
 
 ```typescript
-// packages/server/src/agents/langgraph.ts
+// packages/server/src/agents/langchain.ts
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
@@ -686,7 +686,7 @@ import type { Message, McpTool } from "@herta/shared";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 
-export function createLangGraphAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
+export function createLangChainAgent(systemPrompt: string, mcpTools: McpTool[] = []) {
   const model = new ChatOpenAI({
     openAIApiKey: config.llmApiKey,
     modelName: config.llmModel,
@@ -742,7 +742,7 @@ export function messagesToLangChain(messages: Message[]): (SystemMessage | Human
 // packages/server/src/routes/chat.ts (append to file)
 import { route } from "../router.ts";
 import { createSSEStream, sendSSE } from "../sse.ts";
-import { createLangGraphAgent } from "../agents/langgraph.ts";
+import { createLangChainAgent } from "../agents/langchain.ts";
 import * as db from "../db.ts";
 import { randomUUID } from "crypto";
 import { DEFAULT_SYSTEM_PROMPT } from "@herta/shared";
@@ -766,7 +766,7 @@ route("POST", "/api/chat/langgraph", async (req) => {
   });
 
   return createSSEStream(async (controller) => {
-    const agent = createLangGraphAgent(systemPrompt);
+    const agent = createLangChainAgent(systemPrompt);
     const messages = db.getMessages(conversationId);
     const langChainMessages = [
       { role: "system" as const, content: systemPrompt },
@@ -956,7 +956,7 @@ git commit -m "feat(server): add Pi agent-core with SSE streaming"
 
 **Files:**
 - Create: `packages/server/src/mcp-client.ts`
-- Modify: `packages/server/src/agents/langgraph.ts`
+- Modify: `packages/server/src/agents/langchain.ts`
 - Modify: `packages/server/src/agents/pi.ts`
 
 - [ ] **Step 1: Create MCP client module**
@@ -1025,12 +1025,12 @@ export async function disconnectAll(): Promise<void> {
 
 - [ ] **Step 2: Update LangGraph agent to use real MCP tools**
 
-Modify `packages/server/src/agents/langgraph.ts` — replace the tool `func` body:
+Modify `packages/server/src/agents/langchain.ts` — replace the tool `func` body:
 
 ```typescript
 import { callMcpTool } from "../mcp-client.ts";
 
-// In createLangGraphAgent, replace the func:
+// In createLangChainAgent, replace the func:
 func: async (input) => {
   return await callMcpTool(tool.name, input as Record<string, unknown>);
 },

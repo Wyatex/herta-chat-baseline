@@ -6,7 +6,7 @@ export const conversations = ref<Conversation[]>([]);
 export const currentConversation = ref<Conversation | null>(null);
 export const messages = ref<Message[]>([]);
 export const isStreaming = ref(false);
-export const agentType = ref<AgentType>("langgraph");
+export const agentType = ref<AgentType>("langchain");
 export const systemPrompt = ref("You are a helpful assistant.");
 
 export async function loadConversations() {
